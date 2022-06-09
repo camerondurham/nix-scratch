@@ -40,3 +40,7 @@ $ nix-store --gc
 ## 3. template
 
 [nix-dot-dev/getting-started-nix-template](https://github.com/nix-dot-dev/getting-started-nix-template)
+
+## other resources
+
+- [learn X in Y where X=nix](https://learnxinyminutes.com/docs/nix/)
