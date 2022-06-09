@@ -41,6 +41,18 @@ $ nix-store --gc
 
 [nix-dot-dev/getting-started-nix-template](https://github.com/nix-dot-dev/getting-started-nix-template)
 
+
+## 4. flakes
+
+[Wiki: installing and enabling flakes (helpful on macOS)](https://nixos.wiki/wiki/Flakes)
+
+Restart nix daemon on macOS:
+
+```sh
+sudo launchctl stop org.nixos.nix-daemon;
+sudo launchctl start org.nixos.nix-daemon;
+```
+
 ## other resources
 
 - [learn X in Y where X=nix](https://learnxinyminutes.com/docs/nix/)
