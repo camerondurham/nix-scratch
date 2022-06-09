@@ -1,0 +1,114 @@
+Comment: A description of my state machine
+StartAt: JobConfig and QueryConfig Creator
+States:
+  JobConfig and QueryConfig Creator:
+    Type: Task
+    Resource: arn:aws:states:::lambda:invoke
+    OutputPath: $.Payload
+    Parameters:
+      Payload.$: $
+    Retry:
+      - ErrorEquals:
+          - Lambda.ServiceException
+          - Lambda.AWSLambdaException
+          - Lambda.SdkClientException
+        IntervalSeconds: 2
+        MaxAttempts: 6
+        BackoffRate: 2
+    Next: Map
+  Map:
+    Type: Map
+    Iterator:
+      StartAt: Write JobConfig for a cluster to Job Tracker Table
+      States:
+        Write JobConfig for a cluster to Job Tracker Table:
+          Type: Task
+          Resource: arn:aws:states:::dynamodb:putItem
+          Parameters:
+            TableName: MyDynamoDBTable
+            Item:
+              Column:
+                S: MyEntry
+          Next: Run OpenSearch Query on Hoth
+        Run OpenSearch Query on Hoth:
+          Type: Task
+          Resource: arn:aws:states:::ecs:runTask.sync
+          Parameters:
+            LaunchType: FARGATE
+            Cluster: arn:aws:ecs:REGION:ACCOUNT_ID:cluster/MyECSCluster
+            TaskDefinition: arn:aws:ecs:REGION:ACCOUNT_ID:task-definition/MyTaskDefinition:1
+          Next: Stop after completing query
+        Stop after completing query:
+          Type: Task
+          Parameters:
+            Task: MyData
+          Resource: arn:aws:states:::aws-sdk:ecs:stopTask
+          Next: Update Job State in JobTracker Table
+        Update Job State in JobTracker Table:
+          Type: Task
+          Resource: arn:aws:states:::dynamodb:updateItem
+          Parameters:
+            TableName: MyDynamoDBTable
+            Key:
+              Column:
+                S: MyEntry
+            UpdateExpression: SET MyKey = :myValueRef
+            ExpressionAttributeValues:
+              ':myValueRef':
+                S: MyValue
+          Next: GetObject
+        GetObject:
+          Type: Task
+          Parameters:
+            Bucket: MyData
+            Key: MyData
+          Resource: arn:aws:states:::aws-sdk:s3:getObject
+          Next: Write result to work queue, wait for processor to return token
+        Write result to work queue, wait for processor to return token:
+          Type: Task
+          Resource: arn:aws:states:::sqs:sendMessage.waitForTaskToken
+          Parameters:
+            MessageBody.$: $
+          Next: Mark Cluster JobState as Complete
+        Mark Cluster JobState as Complete:
+          Type: Task
+          Resource: arn:aws:states:::dynamodb:updateItem
+          Parameters:
+            TableName: MyDynamoDBTable
+            Key:
+              Column:
+                S: MyEntry
+            UpdateExpression: SET MyKey = :myValueRef
+            ExpressionAttributeValues:
+              ':myValueRef':
+                S: MyValue
+          End: true
+    Next: Mark Job as Complete
+  Mark Job as Complete:
+    Type: Task
+    Resource: arn:aws:states:::dynamodb:updateItem
+    Parameters:
+      TableName: MyDynamoDBTable
+      Key:
+        Column:
+          S: MyEntry
+      UpdateExpression: SET MyKey = :myValueRef
+      ExpressionAttributeValues:
+        ':myValueRef':
+          S: MyValue
+    Next: Notify Job Is Complete
+  Notify Job Is Complete:
+    Type: Task
+    Resource: arn:aws:states:::sns:publish
+    Parameters:
+      Message.$: $
+    Next: DynamoDB DeleteItem
+  DynamoDB DeleteItem:
+    Type: Task
+    Resource: arn:aws:states:::dynamodb:deleteItem
+    Parameters:
+      TableName: MyDynamoDBTable
+      Key:
+        Column:
+          S: MyEntry
+    End: true
